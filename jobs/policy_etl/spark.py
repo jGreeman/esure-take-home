@@ -16,6 +16,6 @@ def get_spark(app_name: str = "policy_etl", master: str = "local[*]") -> SparkSe
         # can't bind, failing with "Service 'sparkDriver' failed after 16 retries".
         # Not applied on a cluster, where executors must reach the driver over the network.
         builder = builder.config("spark.driver.bindAddress", "127.0.0.1").config(
-            "spark.driver.host", "127.0.0.1"
+            "spark.driver.host", "127.0.0.1").config("spark.driver.memory", "2g"
         )
     return builder.getOrCreate()

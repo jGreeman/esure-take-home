@@ -1,9 +1,5 @@
-"""Bronze layer: land raw JSON-lines files as-is, with ingestion metadata.
-
-- Explicit schema: no inference pass over the data, and stable types.
-- PERMISSIVE mode: malformed lines are kept in _corrupt_record and never fail the job.
-- Idempotent: files already present in bronze are skipped, so a re-run or a
-  retry after a failure never duplicates data.
+"""Silver layer: transform and clean bronze data adding metadata,
+data quality flags, quarantining invalid rows
 """
 import argparse
 import logging
@@ -124,7 +120,8 @@ def add_data_quality_flags(df: DataFrame) -> DataFrame:
     """Add a column with an array for basic data quality flags"""
     flags = F.array(
         F.when(F.col("coverage_amount") < 0, F.lit("negative_coverage_amount")),
-        F.when((F.col("age_of_insured") < 18) | (F.col("age_of_insured") > 120), F.lit("invalid_age_of_insured")),
+        F.when((F.col("age_of_insured") < 18) |
+               (F.col("age_of_insured") > 120), F.lit("invalid_age_of_insured")),
         F.when(F.col("premium_amount").isNull(), F.lit("premium_missing")),
         F.when(F.col("product_type").isNull(), F.lit("product_type_missing")),
     )
@@ -151,7 +148,9 @@ def add_event_id(df: DataFrame) -> DataFrame:
 
 def deduplicate_events(df: DataFrame) -> DataFrame:
     """Deduplicate events based on event_id, keeping the latest _processed_ts"""
-    window = Window.partitionBy("event_id").orderBy(F.col("_ingested_at").desc(), F.col("_source_file").desc())
+    window = (Window.partitionBy("event_id").
+              orderBy(F.col("_ingested_at").desc(), F.col("_source_file").desc())
+    )
     return df.withColumn("row_num", F.row_number().over(window)).filter(F.col("row_num") == 1).drop("row_num")
 
 
@@ -161,9 +160,11 @@ def add_silver_ingestion_metadata(df: DataFrame, run_id: str) -> DataFrame:
             .withColumn("_silver_processed_at", F.current_timestamp()))
 
 
-def write_silver_dataframe(df: DataFrame, output_path: str, write_mode: str = "overwrite") -> int:
+def write_silver_dataframe(df: DataFrame, output_path: str,
+                           write_mode: str = "overwrite") -> DataFrame:
     """Write the silver DataFrame to the output path in parquet format"""
     (df.select(*SILVER_COLUMNS)
+    .repartition("event_date")
      .write.mode(write_mode)
      .option("partitionOverwriteMode", "static")
      .partitionBy("event_date")
@@ -171,36 +172,41 @@ def write_silver_dataframe(df: DataFrame, output_path: str, write_mode: str = "o
     )
     return df
 
-def process(spark: SparkSession, input_path: str, output_path: str, quarantine_path: str, write_mode: str = "overwrite") -> int:
-    """Transform bronze data in parquet format, validate, clean, add dq flags, write to silver layer"""
-    log.info("Reading bronze data from %s", input_path)
+def process(spark: SparkSession, input_path: str, output_path: str,
+            quarantine_path: str, write_mode: str = "overwrite") -> tuple[int, int, int, int]:
+    """Reads and runs the transformations to silver layer"""
+    log.info("Reading bronze data from %s and validating", input_path)
     df = read_bronze(spark, input_path)
     log.info("Parsing event_timestamp")
-    df = parse_event_timestamp(df)
+    df = parse_event_timestamp(df).cache()
+    n_bronze = df.count()
+    log.info("Read %d rows from bronze", n_bronze)
+
     log.info("Splitting corrupt and valid rows")
     valid, invalid = split_invalid_rows(df)
-    log.info("Writing %d invalid rows to quarantine",
-             write_quarantined(invalid, quarantine_path, write_mode))
-    log.info("Parsing policy_type into struct")
+    n_invalid = write_quarantined(invalid, quarantine_path, write_mode)
+    log.info("Found %d invalid rows", n_invalid)
+
+    log.info("Cleaning and transforming valid rows")
     valid = parse_policy_type(valid)
-    log.info("Adding data quality flags")
     valid = add_data_quality_flags(valid)
-    log.info("Nulling invalid values")
     valid = null_invalid_values(valid)
-    log.info("Converting currencies")
     valid = cast_money_to_decimal(valid)
     log.info("Adding event_id")
-    valid = add_event_id(valid)
-    log.info("Deduplicating events")
-    valid = deduplicate_events(valid)
-    log.info("Adding silver ingestion metadata")
-    valid = add_silver_ingestion_metadata(valid, str(uuid.uuid4()))
-    valid = valid.drop("event_timestamp").drop("policy_type").drop("_ingest_date")
-    silver_df = write_silver_dataframe(valid, output_path, write_mode).cache
-    total = silver_df.count()
-    silver_df.unpersist()
+    valid = add_event_id(valid).cache()
+    n_valid = valid.count()
+    log.info("Valid rows after transformations: %d", n_valid)
     
-    return total
+    log.info("Deduplicating events")
+    deduped_df = deduplicate_events(valid)
+    log.info("Adding silver ingestion metadata")
+    silver_df = add_silver_ingestion_metadata(deduped_df, str(uuid.uuid4())).select(*SILVER_COLUMNS).cache()
+    silver_df = write_silver_dataframe(silver_df, output_path, write_mode)
+    n_silver = silver_df.count()
+    for cached in [df, valid, silver_df]:
+        cached.unpersist()
+
+    return n_bronze, n_invalid, n_valid, n_silver
 
 
 def main() -> None:
@@ -212,7 +218,8 @@ def main() -> None:
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    process(get_spark(), args.input, args.output, args.quarantine)
+    n_bronze, n_invalid, n_valid, n_silver = process(get_spark(), args.input, args.output, args.quarantine)
+    log.info("Processing complete. Results: Bronze=%d, Invalid=%d, Valid=%d, Silver=%d", n_bronze, n_invalid, n_valid, n_silver)
 
 
 if __name__ == "__main__":
