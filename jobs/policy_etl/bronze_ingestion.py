@@ -1,8 +1,8 @@
-"""Bronze layer: land raw JSON-lines files as-is, with ingestion metadata.
+"""Silver layer: transform bronze data into a more structured format.
 
 - Explicit schema: no inference pass over the data, and stable types.
 - PERMISSIVE mode: malformed lines are kept in _corrupt_record and never fail the job.
-- Idempotent: files already present in bronze are skipped, so a re-run or a
+- Idempotent: files already present in silver are skipped, so a re-run or a
   retry after a failure never duplicates data.
 """
 import argparse
