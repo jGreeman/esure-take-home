@@ -75,9 +75,10 @@ def write_to_bronze(df: DataFrame, target_path: str) -> None:
     df.write.mode("append").partitionBy(*PARTITION_COLS).parquet(target_path)
 
 
-def process(spark: SparkSession, input_path: str, target_path: str, batch_id: str | None = None) -> int:
-    batch_id = batch_id or str(uuid.uuid4())
-    df = add_ingestion_metadata(read_raw(spark, input_path), batch_id)
+def process(spark: SparkSession, input_path: str, target_path: str, run_id: str | None = None) -> int:
+    """Ingest raw JSON into bronze assigning a run_id passed through the pipeline"""
+    run_id = run_id or str(uuid.uuid4())
+    df = add_ingestion_metadata(read_raw(spark, input_path), run_id)
     df = drop_already_ingested(spark, df, target_path).cache()
 
     total = df.count()
@@ -87,7 +88,7 @@ def process(spark: SparkSession, input_path: str, target_path: str, batch_id: st
     corrupt = df.filter(F.col(CORRUPT_RECORD_COL).isNotNull()).count()
 
     write_to_bronze(df, target_path)
-    log.info("batch=%s ingested=%d corrupt=%d -> %s", batch_id, total, corrupt, target_path)
+    log.info("batch=%s ingested=%d corrupt=%d -> %s", run_id, total, corrupt, target_path)
     df.unpersist()
     return total
 
@@ -96,11 +97,11 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Ingest raw policy event JSON into bronze")
     p.add_argument("--input", default="policy_data/*.json")
     p.add_argument("--output", default="data/bronze/policy_events")
-    p.add_argument("--batch-id", default=None)
+    p.add_argument("--run-id", default=None)
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    process(get_spark(), args.input, args.output, args.batch_id)
+    process(get_spark(), args.input, args.output, args.run_id)
 
 
 if __name__ == "__main__":

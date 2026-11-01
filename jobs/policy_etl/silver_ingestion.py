@@ -173,8 +173,10 @@ def write_silver_dataframe(df: DataFrame, output_path: str,
     return df
 
 def process(spark: SparkSession, input_path: str, output_path: str,
-            quarantine_path: str, write_mode: str = "overwrite") -> tuple[int, int, int, int]:
-    """Reads and runs the transformations to silver layer"""
+            quarantine_path: str, write_mode: str = "overwrite",
+            run_id: str | None = None) -> tuple[int, int, int, int]:
+    """Reads and runs the transformations to silver layer. One run_id is generated if not given."""
+    run_id = run_id or str(uuid.uuid4())
     log.info("Reading bronze data from %s and validating", input_path)
     df = read_bronze(spark, input_path)
     log.info("Parsing event_timestamp")
@@ -200,7 +202,7 @@ def process(spark: SparkSession, input_path: str, output_path: str,
     log.info("Deduplicating events")
     deduped_df = deduplicate_events(valid)
     log.info("Adding silver ingestion metadata")
-    silver_df = add_silver_ingestion_metadata(deduped_df, str(uuid.uuid4())).select(*SILVER_COLUMNS).cache()
+    silver_df = add_silver_ingestion_metadata(deduped_df, run_id).select(*SILVER_COLUMNS).cache()
     silver_df = write_silver_dataframe(silver_df, output_path, write_mode)
     n_silver = silver_df.count()
     for cached in [df, valid, silver_df]:
@@ -215,10 +217,11 @@ def main() -> None:
     p.add_argument("--input", default="data/bronze/policy_events")
     p.add_argument("--output", default="data/silver/policy_events")
     p.add_argument("--quarantine", default="data/quarantine/policy_events")
+    p.add_argument("--run-id", default=None)
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    n_bronze, n_invalid, n_valid, n_silver = process(get_spark(), args.input, args.output, args.quarantine)
+    n_bronze, n_invalid, n_valid, n_silver = process(get_spark(), args.input, args.output, args.quarantine, run_id=args.run_id)
     log.info("Processing complete. Results: Bronze=%d, Invalid=%d, Valid=%d, Silver=%d", n_bronze, n_invalid, n_valid, n_silver)
 
 
