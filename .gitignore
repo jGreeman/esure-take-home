@@ -7,3 +7,5 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+*_SUCCESS
+*._SUCCESS.crc
