@@ -1,0 +1,26 @@
+#   docker compose run --rm pipeline   # raw JSON -> bronze -> silver -> gold
+#   docker compose run --rm queries    # run sql/*.sql against gold and print the results
+#   docker compose run --rm tests      # run the test suite with coverage
+
+x-volumes: &volumes
+  - ./policy_data:/app/policy_data:ro
+  - ./data:/app/data
+
+services:
+  pipeline:
+    build: .
+    image: policy-etl
+    volumes: *volumes
+    command: ["policy_etl.etl_pipeline"]
+
+  queries:
+    build: .
+    image: policy-etl # same image as the pipeline: built once, shared
+    volumes: *volumes
+    command: ["policy_etl.run_queries"]
+
+  tests:
+    build:
+      context: .
+      target: test
+    image: policy-etl-test

@@ -1,0 +1,14 @@
+# Keep the build context small and free of local state.
+venv/
+.venv/
+.git/
+.vscode/
+.pytest_cache/
+**/__pycache__/
+*.egg-info/
+data/
+spark-warehouse/
+policy_data/
+*.ipynb
+.DS_Store
+notes.md
