@@ -1,4 +1,4 @@
-"""Bronze layer: transform bronze data into a more structured format.
+"""Bronze layer: land the raw JSON files as-is, with ingestion metadata.
 
 - Explicit schema: no inference pass over the data, and stable types.
 - PERMISSIVE mode: malformed lines are kept in _corrupt_record and never fail the job.

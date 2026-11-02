@@ -87,7 +87,7 @@ def write_quarantined(invalid: DataFrame, output_path: str, write_mode: str = "o
 
 
 def parse_policy_type(df: DataFrame) -> DataFrame:
-    """Parses the policy_type dict string into a struct with policy_type and brand fields"""
+    """Parse the policy_type dict string into product_type and brand columns"""
     pt_schema = "type STRING, brand STRING"
     parsed = F.from_json(F.regexp_replace("policy_type", r"\bNone\b", "null"), pt_schema)
 
@@ -105,7 +105,7 @@ def parse_event_timestamp(df: DataFrame) -> DataFrame:
 
 
 def null_invalid_values(df: DataFrame) -> DataFrame:
-    """Null out invalid values with Nulls, flag row"""
+    """Replace impossible values (negative coverage, ages <0 or >120) with null; flags are added separately"""
     return (df.withColumn("coverage_amount",
                           F.when(F.col("coverage_amount") < 0, None)
                           .otherwise(F.col("coverage_amount")))
@@ -136,7 +136,7 @@ def cast_money_to_decimal(df: DataFrame) -> DataFrame:
 
 
 def add_event_id(df: DataFrame) -> DataFrame:
-    """Add a unique event_id column using a hash based on policy_id, customer_id, event_ts"""
+    """Add a deterministic event_id: a SHA-256 hash of policy_id, customer_id, event_ts and event_type"""
     key = F.concat_ws("|",
                       F.col("policy_id"),
                       F.col("customer_id"),
@@ -147,7 +147,7 @@ def add_event_id(df: DataFrame) -> DataFrame:
 
 
 def deduplicate_events(df: DataFrame) -> DataFrame:
-    """Deduplicate events based on event_id, keeping the latest _processed_ts"""
+    """Keep one row per event_id: the most recently ingested version (_ingested_at) wins"""
     window = (Window.partitionBy("event_id").
               orderBy(F.col("_ingested_at").desc(), F.col("_source_file").desc())
     )
@@ -162,7 +162,7 @@ def add_silver_ingestion_metadata(df: DataFrame, run_id: str) -> DataFrame:
 
 def write_silver_dataframe(df: DataFrame, output_path: str,
                            write_mode: str = "overwrite") -> DataFrame:
-    """Write the silver DataFrame to the output path in parquet format"""
+    """Full-refresh write of silver as Parquet, partitioned by event_date (one file per date)"""
     (df.select(*SILVER_COLUMNS)
     .repartition("event_date")
      .write.mode(write_mode)

@@ -31,7 +31,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Run the analyst queries against the gold layer")
     p.add_argument("--gold", default="data/gold")
     p.add_argument("--sql-dir", default="sql")
-    p.add_argument("--query", default=None, help="Run one file only, e.g. 01_active_customers.sql")
+    p.add_argument("--query", default=None, help="Run one file only, e.g. active_customers.sql")
     p.add_argument("--rows", type=int, default=20, help="Max rows to show per query")
     args = p.parse_args()
 
