@@ -136,7 +136,7 @@ From this I had a few observations:
 3. `coverage_amount` has a negative value in 38 events, invalidate or flag and keep?
 4. `age_of_insured` has a negative value in 38 events, < 18 in 105 events. Is <18 a valid age for some policies? It's 'age of insured' not age of customer so can this be mapped onto a customer dim?
 5. `premium amount` and `age_of_insured` missing from a number of rows.
-6. `policy_id` is not unique and can have multiple `customer_id`
+6. `policy_id` is not unique and can have multiple `customer_id`, often a policy change will have a new `customer_id`, arguably invalid data.
 7. No white spacing issues identified
 8. Not complete policy history for a given policy_id, some start with cancellations.
 
@@ -152,7 +152,7 @@ Without a data contract or understanding how the data is arriving from upstream,
 
 **Silver** Cleans the bronze data, Nulls ineligible values and applies Data Quality flags while retaining the event row, deduplicated on the `event_id`, and finally adds silver metadata. Partitioned on `event_date` which is derived from the `event_timestamp` in the source.
 
-**Quarantine** Rows from Bronze layer that cannot represent an event `_corrupt_record` is not null from the permissive spark read, missing `event_timestamp`, `policy_id`, `customer_id`, or `event_type`. Partitioned on `_ingest_date` and has `_invalid_reason` column added for for investigation. There is nothing in this dataset that requires this layer but would be useful when scaling up and increasing the volumne.
+**Quarantine** Rows from Bronze layer that cannot represent an event `_corrupt_record` is not null from the permissive spark read, missing `event_timestamp`, `policy_id`, `customer_id`, or `event_type`. Partitioned on `_ingest_date` and has `_invalid_reason` column added for investigation. There is nothing in this dataset that requires this layer but would be useful when scaling up and increasing the volume.
 
 **Gold** A star schema shaped for analysis: dimensions + one fact table, partly normalised to reduce redundancy, one row in the Fact table represents an event, and the dimension tables exist as descriptors of that event, where Foreign Keys in the fact pointing to the PKs in the dims. Partitioned on `event_date` for the fact table; and no partition for the dims due to their small size. Broadcast joins can be used on the Dims when scaling up across a cluster due to their small size.
 
@@ -322,7 +322,7 @@ Caching 5,000 rows costs a few MB.
 - **`dq_flags` and lineage columns are carried into the fact** so analysts can filter on data
   quality and trace any row to its source file and run.
 - At this scale, some dims are not very descriptive, dim_customer just has customer_id. In a production environment you would have customer name, age, email etc, and having a dim would make more sense. Likewise with brand and product type, with real data you might make a dim for each with supplementary data.
-- policy_id can have multiple customer_ids so coudn't be moved to a dim, could use a policy_holder dim with primary, secondary holders, however would need more context.
+- policy_id can have multiple customer_ids so couldn't be moved to a dim, could use a policy_holder dim with primary, secondary holders, however would need more context.
 
 ### Keys: deterministic, defined once
 
