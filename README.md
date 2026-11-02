@@ -77,7 +77,7 @@ docker compose run --rm tests      # run the test suite with coverage
 ### PySpark rather than pandas
 
 The input is only ~1.3 MB (5,000 events), so pandas would be a better tool for a small project of the scope, I
-chose **PySpark** anyway as tt matches my current stack and the target platform allowing it to be easily scaled/productionised via AWS Glue/Databricks.
+chose **PySpark** anyway as it matches my current stack and the target platform allowing it to be easily scaled/productionised via AWS Glue/Databricks.
 
 Two Spark practices followed throughout because they matter at scale:
 
@@ -119,7 +119,7 @@ Switching to a columnar database such as Redshift and creating materialised view
 
 `spark.driver.bindAddress/host=127.0.0.1` For running locally, not applied on a cluster, where executors must reach the driver over the network.
 
-`spark.driver.memory=2g` For running locally, encountered a lack of memory issue when writing many small partitions, coalesce() helped.
+`spark.driver.memory=2g` For running locally, encountered a lack of memory issue when writing many small partitions, repartition() helped.
 
 ---
 
@@ -352,21 +352,21 @@ Keys for each dim: product, region, customer were generated using their natural 
 
 ## Assumptions
 
-| **Active policy** | A policy's status is set by its most recent purchase, renewal or cancellation. Claims don't change status. Active = that latest event is a purchase or renewal.
+**Active policy** | A policy's status is set by its most recent purchase, renewal or cancellation. Claims don't change status. Active = that latest event is a purchase or renewal.
 
-| **Missing policy type** | A genuine event with an unknown attribute (see "Aren't the 631 typeless renewals an overcount?" in the Design Q&A): reported as `unknown`, never dropped or guessed.
+**Missing policy type** | A genuine event with an unknown attribute reported as `unknown`, never dropped or guessed.
 
-| **Under-18 ages** | Possibly genuine (children on health/life policies): kept and flagged. Nulling them is a business-rule decision. |
+**Under-18 ages** | Possibly genuine (children on health/life policies): kept and flagged. Nulling them is a business-rule decision.
 
-| **Ages over 120 / negative** | Impossible: nulled and flagged.
+**Ages over 120 / negative** | Impossible: nulled and flagged.
 
-| **Coverage ≤ 0 / sentinel** | Not a real amount: nulled and flagged.
+**Coverage ≤ 0 / sentinel** | Not a real amount: nulled and flagged.
 
-| **Duplicates** | Same policy, customer, event type and timestamp = same event; the latest ingested version wins.
+**Duplicates** | Same policy, customer, event type and timestamp = same event; the latest ingested version wins.
 
-| **Timestamps** | UTC, ISO-8601 with milliseconds; anything else is rejected.
+**Timestamps** | UTC, ISO-8601 with milliseconds; anything else is rejected.
 
-| **Landing location** | Files land at a stable path (as in a landing bucket); bronze identifies ingested files by path.
+**Landing location** | Files land at a stable path (as in a landing bucket); bronze identifies ingested files by path.
 
 ---
 
