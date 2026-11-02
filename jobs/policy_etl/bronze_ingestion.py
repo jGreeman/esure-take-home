@@ -1,8 +1,8 @@
-"""Silver layer: transform bronze data into a more structured format.
+"""Bronze layer: transform bronze data into a more structured format.
 
 - Explicit schema: no inference pass over the data, and stable types.
 - PERMISSIVE mode: malformed lines are kept in _corrupt_record and never fail the job.
-- Idempotent: files already present in silver are skipped, so a re-run or a
+- Idempotent: files already present in bronze are skipped, so a re-run or a
   retry after a failure never duplicates data.
 """
 import argparse
@@ -33,12 +33,11 @@ RAW_SCHEMA = StructType(
         StructField("customer_id", StringType(), nullable=True),
         StructField("event_type", StringType(), nullable=True),
         StructField("event_timestamp", StringType(), nullable=True),  # ISO-8601, parsed in silver
-        StructField("policy_type", StringType(), nullable=True),  # "{'type': 'auto', 'brand': ...}"
+        StructField("policy_type", StringType(), nullable=True),  
         StructField("premium_amount", DoubleType(), nullable=True),
         StructField("coverage_amount", DoubleType(), nullable=True),
         StructField("age_of_insured", LongType(), nullable=True),
         StructField("region", StringType(), nullable=True),
-        # Spark fills this with the raw line when a record can't be parsed against the schema
         StructField(CORRUPT_RECORD_COL, StringType(), nullable=True),
     ]
 )
