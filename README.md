@@ -291,13 +291,14 @@ Caching 5,000 rows costs a few MB.
 
 ### Star schema
 
-| Table               | Rows (this data) | Contents                                               |
+![Data model](docs/data_model.png)
+| Table | Rows (this data) | Contents |
 | ------------------- | ---------------- | ------------------------------------------------------ |
-| `fact_policy_event` | 5,000            | One row per event: keys, measures, `dq_flags`, lineage |
-| `dim_product`       | 20               | 16 type × brand combinations + 4 `unknown` × brand     |
-| `dim_customer`      | 3,344            | One row per customer                                   |
-| `dim_region`        | 4                | North, South, East, West                               |
-| `dim_date`          | 366              | One row per event date, with calendar attributes       |
+| `fact_policy_event` | 5,000 | One row per event: keys, measures, `dq_flags`, lineage |
+| `dim_product` | 20 | 16 type × brand combinations + 4 `unknown` × brand |
+| `dim_customer` | 3,344 | One row per customer |
+| `dim_region` | 4 | North, South, East, West |
+| `dim_date` | 366 | One row per event date, with calendar attributes |
 
 ### Why a star schema, and how it reduces redundancy
 

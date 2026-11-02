@@ -9,3 +9,4 @@ build/
 dist/
 *_SUCCESS
 *._SUCCESS.crc
+.coverage
