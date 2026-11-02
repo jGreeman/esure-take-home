@@ -74,8 +74,6 @@ def date_key() -> F.Column:
     return F.date_format("event_date", "yyyyMMdd").cast("int")
 
 
-# --- dimensions ------------------------------------------------------------
-
 def create_dim_product(df: DataFrame) -> DataFrame:
     """Create the product dimension table"""
     return (df.select(
@@ -123,8 +121,6 @@ def create_dim_date(df: DataFrame) -> DataFrame:
     return df
 
 
-# --- fact ------------------------------------------------------------------
-
 def create_fact_policy_event(df: DataFrame) -> DataFrame:
     """One row per policy event (the grain), with a foreign key to each dimension.
 
@@ -135,17 +131,6 @@ def create_fact_policy_event(df: DataFrame) -> DataFrame:
               .withColumn("date_key", date_key())
               .select(*FACT_COLUMNS)
            )
-
-
-# --- validation ------------------------------------------------------------
-
-# fact foreign key -> the dimension whose primary key it references
-FOREIGN_KEYS = {
-    "product_key": "dim_product",
-    "customer_key": "dim_customer",
-    "region_key": "dim_region",
-    "date_key": "dim_date",
-}
 
 
 def find_orphan_keys(fact: DataFrame, dim: DataFrame, key: str) -> int:
@@ -162,8 +147,14 @@ def validate_gold(tables: dict[str, DataFrame], n_silver: int) -> None:
     """
     fact = tables["fact_policy_event"]
     problems = []
+    foreign_keys = {
+    "product_key": "dim_product",
+    "customer_key": "dim_customer",
+    "region_key": "dim_region",
+    "date_key": "dim_date",
+    }
 
-    for key, dim_name in FOREIGN_KEYS.items():
+    for key, dim_name in foreign_keys.items():
         dim = tables[dim_name]
         n_rows, n_keys = dim.count(), dim.select(key).distinct().count()
         if n_rows != n_keys:
@@ -180,7 +171,6 @@ def validate_gold(tables: dict[str, DataFrame], n_silver: int) -> None:
         raise ValueError("Gold validation failed: " + "; ".join(problems))
 
 
-# --- writing ---------------------------------------------------------------
 
 def write_staging_table(df: DataFrame, output_path: str, partition_by: str | None = None) -> None:
     """Full-refresh write of one gold table.
