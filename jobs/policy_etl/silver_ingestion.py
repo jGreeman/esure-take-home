@@ -105,7 +105,7 @@ def parse_event_timestamp(df: DataFrame) -> DataFrame:
 
 
 def null_invalid_values(df: DataFrame) -> DataFrame:
-    """Replace impossible values (negative coverage, ages <0 or >120) with null; flags are added separately"""
+    """Replace impossible values (negative coverage, ages <0 or >120) with null"""
     return (df.withColumn("coverage_amount",
                           F.when(F.col("coverage_amount") < 0, None)
                           .otherwise(F.col("coverage_amount")))
@@ -136,7 +136,7 @@ def cast_money_to_decimal(df: DataFrame) -> DataFrame:
 
 
 def add_event_id(df: DataFrame) -> DataFrame:
-    """Add a deterministic event_id: a SHA-256 hash of policy_id, customer_id, event_ts and event_type"""
+    """Add an event_id: a SHA-256 hash of policy_id, customer_id, event_ts and event_type"""
     key = F.concat_ws("|",
                       F.col("policy_id"),
                       F.col("customer_id"),
@@ -198,7 +198,7 @@ def process(spark: SparkSession, input_path: str, output_path: str,
     valid = add_event_id(valid).cache()
     n_valid = valid.count()
     log.info("Valid rows after transformations: %d", n_valid)
-    
+
     log.info("Deduplicating events")
     deduped_df = deduplicate_events(valid)
     log.info("Adding silver ingestion metadata")
