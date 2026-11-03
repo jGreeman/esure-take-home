@@ -13,6 +13,13 @@ from policy_etl.spark import get_spark
 
 log = logging.getLogger("policy_etl.gold_ingestion")
 
+FOREIGN_KEYS = {
+    "product_key": "dim_product",
+    "customer_key": "dim_customer",
+    "region_key": "dim_region",
+    "date_key": "dim_date",
+    }
+
 SILVER_SCHEMA = {
     "event_id" : "string", "policy_id" :"string", "customer_id" : "string", "event_type" : "string",
     "event_ts" : "timestamp", "event_date" : "date",
@@ -147,14 +154,8 @@ def validate_gold(tables: dict[str, DataFrame], n_silver: int) -> None:
     """
     fact = tables["fact_policy_event"]
     problems = []
-    foreign_keys = {
-    "product_key": "dim_product",
-    "customer_key": "dim_customer",
-    "region_key": "dim_region",
-    "date_key": "dim_date",
-    }
 
-    for key, dim_name in foreign_keys.items():
+    for key, dim_name in FOREIGN_KEYS.items():
         dim = tables[dim_name]
         n_rows, n_keys = dim.count(), dim.select(key).distinct().count()
         if n_rows != n_keys:
